@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	kazoo "github.com/krallistic/kazoo-go"
+	"github.com/krallistic/kazoo-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	plog "github.com/prometheus/common/log"
@@ -424,10 +424,13 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 								// If the topic is consumed by that consumer group, but no offset associated with the partition
 								// forcing lag to -1 to be able to alert on that
 								var lag int64
-								if offsetFetchResponseBlock.Offset == -1 {
+								if currentOffset == -1 {
 									lag = -1
 								} else {
-									lag = offset - offsetFetchResponseBlock.Offset
+									lag = offset - currentOffset
+									if lag < 0 {
+										lag = 0
+									}
 									lagSum += lag
 								}
 								ch <- prometheus.MustNewConstMetric(
@@ -470,13 +473,21 @@ func main() {
 	var (
 		listenAddress = kingpin.Flag("web.listen-address", "Address to listen on for web interface and telemetry.").Default(":9308").String()
 		metricsPath   = kingpin.Flag("web.telemetry-path", "Path under which to expose metrics.").Default("/metrics").String()
-		topicFilter   = kingpin.Flag("topic.filter", "Regex that determines which topics to collect.").Default(".*").String()
-		groupFilter   = kingpin.Flag("group.filter", "Regex that determines which consumer groups to collect.").Default(".*").String()
-		logSarama     = kingpin.Flag("log.enable-sarama", "Turn on Sarama logging.").Default("false").Bool()
 
-		opts = kafkaOpts{}
+		topicFilter = os.Getenv("TOPIC")
+		kafkaServer = os.Getenv("KAFKA_SERVER")
+		groupFilter = kingpin.Flag("group.filter", "Regex that determines which consumer groups to collect.").Default(".*").String()
+		logSarama   = kingpin.Flag("log.enable-sarama", "Turn on Sarama logging.").Default("true").Bool()
+		opts        = kafkaOpts{}
 	)
-	kingpin.Flag("kafka.server", "Address (host:port) of Kafka server.").Default("kafka:9092").StringsVar(&opts.uri)
+	if topicFilter == "" {
+		panic("TOPIC is missing")
+	}
+	if kafkaServer == "" {
+		panic("KAFKA_SERVER is missing")
+	}
+	opts.uri = []string{kafkaServer}
+
 	kingpin.Flag("sasl.enabled", "Connect using SASL/PLAIN.").Default("false").BoolVar(&opts.useSASL)
 	kingpin.Flag("sasl.handshake", "Only set this to false if using a non-Kafka SASL proxy.").Default("true").BoolVar(&opts.useSASLHandshake)
 	kingpin.Flag("sasl.username", "SASL user name.").Default("").StringVar(&opts.saslUsername)
@@ -603,7 +614,7 @@ func main() {
 		sarama.Logger = log.New(os.Stdout, "[sarama] ", log.LstdFlags)
 	}
 
-	exporter, err := NewExporter(opts, *topicFilter, *groupFilter)
+	exporter, err := NewExporter(opts, topicFilter, *groupFilter)
 	if err != nil {
 		plog.Fatalln(err)
 	}

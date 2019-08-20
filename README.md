@@ -228,13 +228,6 @@ If you like Kafka Exporter, please give me a star. This will help more people kn
 
 Please feel free to send me [pull requests](https://github.com/danielqsj/kafka_exporter/pulls).
 
-Donation
---------
-
-Your donation will encourage me to continue to improve Kafka Exporter. Support Alipay donation.
-
-![](https://github.com/danielqsj/kafka_exporter/raw/master/alipay.jpg)
-
 License
 -------
 
