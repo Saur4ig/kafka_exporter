@@ -23,4 +23,3 @@ kafka_exporter
 
 # Test configuration
 test/
-Makefile
